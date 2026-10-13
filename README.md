@@ -1,111 +1,97 @@
-# Hand Tracking Tutorial — Unreal Engine
+# Hand Interaction Physics Engine
 
-An Unreal Engine project for exploring hand interaction and Python-to-Unreal data streaming. It includes a hand-interaction level, Blueprint assets, hand-related input actions, and a small TCP example that sends synthetic 3D coordinates to the Unreal Editor.
+A Python prototype for interacting with simulated balls using a webcam-tracked hand. MediaPipe hand landmarks drive a set of spherical proxies, allowing hand movements to influence other balls through collision responses.
 
-**Unreal Engine 5.3.2 · Blueprints · Meta XR · Python**
+**Individual project by Inhyuk Song · Fall 2023**  
+Python · OpenCV · MediaPipe · NumPy · Pygame · PyOpenGL
 
-## What to explore
+![Webcam hand tracking and the sphere-based physics simulation](https://github.com/Chesed990204/Hand-Interaction_Physics-Engine/assets/45059838/1d5f0e56-4ae1-44d3-843d-0c82521ef18a)
 
-- **Hand interaction:** inspect the `HandInteraction` level, `VRPawn`, ball, and end-effector Blueprints.
-- **Input setup:** examine the default input mapping context and action assets for grasp, index curl, pointing, and thumbs-up gestures.
-- **External data input:** run a Python TCP server and receive its three-value messages inside the Unreal Editor.
+## How it works
 
-The TCP example generates random coordinates. It provides a minimal communication example; it does not stream measured hand positions.
+1. **Track the hand:** OpenCV captures webcam frames, and MediaPipe estimates hand landmarks.
+2. **Map input to the simulation:** 21 landmarks are mapped to the positions of high-mass spheres representing the hand.
+3. **Update the physics:** other spheres move under gravity and respond to sphere–sphere and wall collisions, with damping.
+4. **Display the interaction:** Pygame and OpenGL render the simulated scene, while an OpenCV window shows the camera image with hand landmarks.
+
+The main demo initializes **150 bodies**, including the 21 hand proxies. Its collision model uses sphere overlap, relative velocity along the collision direction, and mass-weighted velocity changes.
 
 ## Requirements
 
-| Component | Purpose |
-| --- | --- |
-| Unreal Engine **5.3.2** | Version specified by the original project README; the `.uproject` associates with UE 5.3. |
-| Meta XR plugin compatible with UE 5.3 | The project enables the plugin named `OculusXR`. Plugin files are not bundled. |
-| Git and Git LFS | Required to retrieve the actual content files. |
-| A compatible Meta Quest setup | For inspecting hand/controller interaction in VR. |
-| Python 3 | For the standalone TCP server; it uses only standard-library modules. |
-| Unreal's Python Editor Script Plugin | For running `tcp_client.py` inside the editor. |
+- A webcam and permission for Python to access it.
+- A graphical desktop with OpenGL/GLU support.
+- Python with NumPy, OpenCV, MediaPipe, Pygame, and PyOpenGL.
 
-## Get the project
+The code uses the legacy `mp.solutions.hands` API. A proposed compatibility setup is **Python 3.11 with MediaPipe 0.10.21**. The original environment was not recorded, and this installation recipe has not been tested with a live camera.
 
-All files under `Content/`, **including the Python scripts**, are tracked through Git LFS.
+## Setup and run
 
 ```bash
-git lfs install
-git clone https://github.com/Chesed990204/HandTrackingTutorial.git
-cd HandTrackingTutorial
-git lfs pull
+git clone https://github.com/Chesed990204/Hand-Interaction_Physics-Engine.git
+cd Hand-Interaction_Physics-Engine
+python -m venv .venv
 ```
 
-If a downloaded file contains `version https://git-lfs.github.com/spec/v1` instead of its actual contents, the LFS objects have not been retrieved. Resolve that before opening the project or running the scripts.
+Create the environment using Python 3.11, then activate it:
 
-## Open the hand-interaction level
+- macOS/Linux: `source .venv/bin/activate`
+- Windows PowerShell: `.venv\Scripts\Activate.ps1`
 
-1. Install Unreal Engine **5.3.2** and a compatible **Meta XR / OculusXR** plugin.
-2. Open `HandTrackingTutorial.uproject`.
-3. In the Content Browser, open:
-
-   ```text
-   Content/HandInteraction.umap
-   ```
-
-   The committed game default map is Unreal's `OpenWorld` template, so select `HandInteraction` explicitly. Set it as the startup/game map in **Project Settings → Maps & Modes** if needed.
-
-4. Inspect `VRPawn`, `VRPawnGameMode`, and `IMC_Default` to follow the pawn and input setup. The project uses **Enhanced Input** and configures Meta XR for **Controllers and Hands**.
-5. Configure a compatible headset connection and XR runtime before trying **VR Preview**. The committed configuration targets desktop hardware and also contains Android/Quest settings; a fresh headset run or packaged build has not been verified for this README.
-
-## Run the TCP example
-
-This example uses two processes on the same computer:
-
-```text
-Python server → TCP 127.0.0.1:12345 → Unreal Editor Python client
-```
-
-### 1. Start the server
-
-From the repository root:
+Install the dependencies:
 
 ```bash
-python Content/Python/tcp_server.py
+python -m pip install "numpy<2" "opencv-contrib-python==4.11.0.86" "mediapipe==0.10.21" pygame PyOpenGL
 ```
 
-The server sends three values approximately every 0.1 seconds. Each value is a random integer from -10 to 9, encoded as a float using `struct.pack('fff', ...)`.
+This uses the OpenCV distribution required by MediaPipe; avoid installing another OpenCV distribution into the same environment. See the [MediaPipe 0.10.21 dependencies](https://github.com/google-ai-edge/mediapipe/blob/v0.10.21/requirements.txt) and [available Python wheels](https://pypi.org/project/mediapipe/0.10.21/).
 
-### 2. Start the editor client
+Start the main demo:
 
-Enable **Python Editor Script Plugin** under **Edit → Plugins** and restart the editor. In the Output Log's Python console, run:
-
-```python
-import tcp_client
-tcp_client.start_streaming_in_thread()
+```bash
+python Physics_Hand/main.py
 ```
 
-Unreal adds the project's `Content/Python` directory to its Python search path. The committed Python settings also contain a machine-specific additional path; update or remove that entry for your checkout. See [Epic's UE 5.3 Python setup guide](https://dev.epicgames.com/documentation/en-us/unreal-engine/scripting-the-unreal-editor-using-python?application_version=5.3).
+Show one hand to the camera and move it to interact with the simulated balls. The application opens a **1280 × 720 OpenGL window** and a **MediaPipe Hands camera window**. Close the Pygame/OpenGL window to exit.
 
-The client stores the latest received vector in `UnrealDataStore` and logs updates. To inspect it:
+The default camera is `cv2.VideoCapture(0)`. Change that index in the script if your camera uses a different device number.
 
-```python
-tcp_client.UnrealDataStore.get_float_values()
-```
+## Two examples
 
-Start the client once per session. Stop the external server with **Ctrl+C**.
-
-### Current example behavior
-
-- The default client path **stores values**; it does not move an actor.
-- A separate actor-application function is present, but its `set_actor_location` call is commented out and its target actor name is hard-coded.
-- The receiver assumes that `recv(12)` returns a complete three-float message. A more general streaming implementation needs to accumulate partial reads and define byte order explicitly.
-- `tcp_client.py` imports `unreal` and belongs in the **Unreal Editor**. It is not a standalone Python client or a packaged-game networking implementation.
-
-## Project structure
-
-| Path | Contents |
+| File | Purpose |
 | --- | --- |
-| `HandTrackingTutorial.uproject` | Engine association and plugin requirements. |
-| `Content/HandInteraction.umap` | Hand-interaction level. |
-| `Content/Blueprints/VRPawn.uasset` | VR pawn Blueprint. |
-| `Content/Blueprints/BP_Ball.uasset` | Ball Blueprint. |
-| `Content/Blueprints/BP_endeffector.uasset` | End-effector Blueprint. |
-| `Content/Blueprints/Input/` | Mapping context and hand/controller action assets. |
-| `Content/Blueprints/Networking/` | Networking Blueprint asset. |
-| `Content/Python/tcp_server.py` | Synthetic coordinate stream. |
-| `Content/Python/tcp_client.py` | Editor-side TCP receiver and vector storage. |
-| `Config/` | Input, XR, map, and Python settings. |
+| `Physics_Hand/main.py` | Main multi-body simulation with hand proxies, gravity, wall collisions, and sphere–sphere collision responses. |
+| `Physics_Hand/beta.py` | Separate hand-visualization experiment with a palm, interpolated finger geometry, and a single moving ball with a simple collision response. |
+
+Run the alternate example with:
+
+```bash
+python Physics_Hand/beta.py
+```
+
+`beta.py` additionally calls GLUT functions and requires a native GLUT/freeglut runtime. In that example, **Escape** exits when the OpenCV window has focus. The main demo does not implement this shortcut.
+
+## Adjusting the main simulation
+
+The following values are defined near the top of `main.py`:
+
+| Parameter | Default | Role |
+| --- | --- | --- |
+| `BALLS` | `150` | Total body count, including 21 hand proxies. Keep this at least 21. |
+| `TIME_TICK` | `0.1` | Integration step used by position and velocity updates. |
+| `GRAVITY_CONST` | `4` | Downward gravity magnitude. |
+| `DAMPING_FACTOR` | `0.25` | Damping applied during collision response. |
+| `SPACE_LIMITS` | Defined per axis | Simulation boundaries. |
+| `COLLISON_MARGIN` | `0.1` | Separation offset used when resolving collisions. |
+
+Sphere radii are assigned directly in `randomize_balls()`: 20 for hand proxies and 15 for other balls. The existing `MIN_BALL_SIZE` and `MAX_BALL_SIZE` constants are currently unused. Hand-coordinate offsets and scaling are defined in `map_hand_landmarks_to_balls()`.
+
+## Implementation notes
+
+- The landmark mapping uses scaled camera-image coordinates and estimated relative depth; it is not a calibrated metric reconstruction of the hand.
+- Both hands would write into the same set of 21 proxies. Use one visible hand for the current demo.
+- The simulation uses fixed-step updates and pairwise collision checks. Its speed and response depend on frame processing and body count.
+- If camera capture fails, check permissions, device selection, and competing camera applications. The main loop does not safely skip a failed frame before image conversion.
+
+## Author
+
+Designed and implemented by **Inhyuk Song** as an individual project in **Fall 2023**.
