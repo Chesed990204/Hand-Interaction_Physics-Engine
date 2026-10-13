@@ -10,5 +10,3 @@
 
 ### Dependency:
 opencv, pygame, opengl, mediapipe
-
-### tested on Mac M1 Max, Python 3.11.
